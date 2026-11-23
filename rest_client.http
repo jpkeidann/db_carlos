@@ -1,0 +1,367 @@
+### Testes de integração (extensão "REST Client" do VS Code)
+### Ordem sugerida: rode `npm run sync`, `npm run seed`, `npm start` e execute de cima para baixo.
+
+@baseUrl = http://localhost:3000
+@json = application/json
+
+###############################################################
+# PÚBLICO
+###############################################################
+
+### Health check
+GET {{baseUrl}}/
+
+### Consulta de CEP (ViaCEP) - autocompletar endereço
+GET {{baseUrl}}/cep/88200000
+
+### Cadastro de cliente (CPF validado, senha com bcrypt, endereço via ViaCEP)
+POST {{baseUrl}}/usuarios
+Content-Type: {{json}}
+
+{
+  "nome": "Maria Cliente",
+  "email": "maria@email.com",
+  "senha": "123456",
+  "cpf": "529.982.247-25",
+  "telefone": "(47) 99999-1234",
+  "cep": "01001-000",
+  "numero": "100",
+  "complemento": "Apto 12"
+}
+
+### Cadastro com CPF inválido (esperado 400)
+POST {{baseUrl}}/usuarios
+Content-Type: {{json}}
+
+{ "nome": "Teste", "email": "t@t.com", "senha": "123456", "cpf": "111.111.111-11", "cep": "01001-000", "numero": "1" }
+
+### Login do cliente (guarda o token)
+# @name loginCliente
+POST {{baseUrl}}/login
+Content-Type: {{json}}
+
+{ "email": "maria@email.com", "senha": "123456" }
+
+###
+@tokenCliente = {{loginCliente.response.body.token}}
+
+### Login do ADMIN (criado pelo `npm run seed`)
+# @name loginAdmin
+POST {{baseUrl}}/login
+Content-Type: {{json}}
+
+{ "email": "admin@jonascorp.com", "senha": "Admin@123" }
+
+###
+@tokenAdmin = {{loginAdmin.response.body.token}}
+
+### Catálogo
+GET {{baseUrl}}/produtos
+
+### Busca por nome e filtro por categoria
+GET {{baseUrl}}/produtos/buscar?nome=placa&idCategoria=2
+
+### Busca por nome (path)
+GET {{baseUrl}}/produtos/buscar/placa
+
+### Produto por código
+GET {{baseUrl}}/produtos/1
+
+### Categorias
+GET {{baseUrl}}/categorias
+
+### Categoria por código / por nome
+GET {{baseUrl}}/categorias/1
+
+###
+GET {{baseUrl}}/categorias/buscar/hardware
+
+###############################################################
+# ADMIN - categorias e produtos
+###############################################################
+
+### Nova categoria
+POST {{baseUrl}}/categorias
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "nome": "Periféricos", "descricao": "Teclados, mouses e switches" }
+
+### Atualizar categoria (completo)
+PUT {{baseUrl}}/categorias/5
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "nome": "Periféricos Gamer", "descricao": "Teclados, mouses e switches" }
+
+### Atualizar categoria (parcial)
+PATCH {{baseUrl}}/categorias/5
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "descricao": "Nova descrição" }
+
+### Excluir categoria
+DELETE {{baseUrl}}/categorias/5
+Authorization: Bearer {{tokenAdmin}}
+
+### Cadastrar produto (já cria o estoque com quantidade inicial)
+POST {{baseUrl}}/produtos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{
+  "idCategoria": 2,
+  "nome": "Placa de Vídeo RTX 4060",
+  "descricao": "8GB GDDR6",
+  "preco": 2299.90,
+  "imagem_url": "https://exemplo.com/rtx4060.png",
+  "quantidade_inicial": 10,
+  "quantidade_minima": 3
+}
+
+###
+POST {{baseUrl}}/produtos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{
+  "idCategoria": 4,
+  "nome": "Membrana condutiva PS4",
+  "preco": 19.90,
+  "quantidade_inicial": 100,
+  "quantidade_minima": 10
+}
+
+### Listar produtos (admin: inclui inativos e estoque mínimo)
+GET {{baseUrl}}/admin/produtos
+Authorization: Bearer {{tokenAdmin}}
+
+### Atualizar produto (completo)
+PUT {{baseUrl}}/produtos/1
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "idCategoria": 2, "nome": "Placa de Vídeo RTX 4060", "preco": 2199.90 }
+
+### Atualizar produto (parcial) - desativar
+PATCH {{baseUrl}}/produtos/1
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "ativo": false }
+
+### Reativar
+PATCH {{baseUrl}}/produtos/1
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "ativo": true }
+
+### Excluir produto (409 se já tiver sido vendido)
+DELETE {{baseUrl}}/produtos/2
+Authorization: Bearer {{tokenAdmin}}
+
+###############################################################
+# ADMIN - estoque
+###############################################################
+
+### Estoque de todos os produtos
+GET {{baseUrl}}/estoque
+Authorization: Bearer {{tokenAdmin}}
+
+### Estoque de um produto
+GET {{baseUrl}}/estoque/produto/1
+Authorization: Bearer {{tokenAdmin}}
+
+### Dar ENTRADA no estoque
+POST {{baseUrl}}/estoque/movimentar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "idProduto": 1, "tipo": "ENTRADA", "quantidade": 5, "motivo": "Compra do fornecedor" }
+
+### Dar SAIDA no estoque (409 se não houver quantidade)
+POST {{baseUrl}}/estoque/movimentar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "idProduto": 1, "tipo": "SAIDA", "quantidade": 1, "motivo": "Item danificado" }
+
+### Histórico de movimentações
+GET {{baseUrl}}/estoque/movimentos?idProduto=1
+Authorization: Bearer {{tokenAdmin}}
+
+### Atualizar estoque (completo)
+PUT {{baseUrl}}/estoque/1
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "quantidade_atual": 20, "quantidade_minima": 5 }
+
+### Atualizar estoque (parcial)
+PATCH {{baseUrl}}/estoque/1
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "quantidade_minima": 4 }
+
+###############################################################
+# CLIENTE (logado)
+###############################################################
+
+### Perfil
+GET {{baseUrl}}/usuarios/perfil
+Authorization: Bearer {{tokenCliente}}
+
+### Atualizar perfil (parcial)
+PATCH {{baseUrl}}/usuarios/2
+Authorization: Bearer {{tokenCliente}}
+Content-Type: {{json}}
+
+{ "telefone": "(47) 98888-0000" }
+
+### Atualizar perfil (completo)
+PUT {{baseUrl}}/usuarios/2
+Authorization: Bearer {{tokenCliente}}
+Content-Type: {{json}}
+
+{
+  "nome": "Maria da Silva",
+  "email": "maria@email.com",
+  "cpf": "529.982.247-25",
+  "cep": "01001-000",
+  "numero": "100"
+}
+
+### CHECKOUT - 6 unidades no total => 5% de desconto (veja config/regras.js)
+# @name checkout
+POST {{baseUrl}}/pedidos
+Authorization: Bearer {{tokenCliente}}
+Content-Type: {{json}}
+
+{
+  "itens": [
+    { "idProduto": 1, "quantidade": 1 },
+    { "idProduto": 2, "quantidade": 5 }
+  ]
+}
+
+###
+@codPedido = {{checkout.response.body.pedido.codPedido}}
+
+### Checkout com outro endereço de entrega
+POST {{baseUrl}}/pedidos
+Authorization: Bearer {{tokenCliente}}
+Content-Type: {{json}}
+
+{
+  "itens": [{ "idProduto": 2, "quantidade": 1 }],
+  "entrega": { "cep": "88200-000", "numero": "55", "logradouro": "Rua das Flores", "bairro": "Centro" }
+}
+
+### Checkout sem token (esperado 401)
+POST {{baseUrl}}/pedidos
+Content-Type: {{json}}
+
+{ "itens": [{ "idProduto": 1, "quantidade": 1 }] }
+
+### Histórico de pedidos
+GET {{baseUrl}}/pedidos/meus-pedidos
+Authorization: Bearer {{tokenCliente}}
+
+### Detalhe de um pedido
+GET {{baseUrl}}/pedidos/{{codPedido}}
+Authorization: Bearer {{tokenCliente}}
+
+### Itens do pedido
+GET {{baseUrl}}/itens-pedidos/pedido/{{codPedido}}
+Authorization: Bearer {{tokenCliente}}
+
+### Entrega do pedido (status/rastreio)
+GET {{baseUrl}}/entregas/pedido/{{codPedido}}
+Authorization: Bearer {{tokenCliente}}
+
+### Cancelar pedido (só PENDENTE; devolve o estoque)
+PATCH {{baseUrl}}/pedidos/{{codPedido}}/cancelar
+Authorization: Bearer {{tokenCliente}}
+
+###############################################################
+# ADMIN - pedidos, entregas, usuários e relatórios
+###############################################################
+
+### Todos os pedidos (?status=PENDENTE)
+GET {{baseUrl}}/pedidos?status=PENDENTE
+Authorization: Bearer {{tokenAdmin}}
+
+### Pedidos de um usuário
+GET {{baseUrl}}/pedidos/usuario/2
+Authorization: Bearer {{tokenAdmin}}
+
+### Mudar status: PENDENTE -> PAGO -> ENVIADO -> ENTREGUE (ou CANCELADO)
+PATCH {{baseUrl}}/pedidos/2/status
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "status": "PAGO" }
+
+### Entregas
+GET {{baseUrl}}/entregas
+Authorization: Bearer {{tokenAdmin}}
+
+### Atualizar entrega (parcial): rastreio e data estimada
+PATCH {{baseUrl}}/entregas/1
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "statusEntrega": "EM_TRANSITO", "codigoRastreio": "BR123456789BR", "dataEstimada": "2026-12-05" }
+
+### Atualizar entrega (completo)
+PUT {{baseUrl}}/entregas/1
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{
+  "statusEntrega": "SAIU_PARA_ENTREGA",
+  "cep": "01001-000", "logradouro": "Praça da Sé", "bairro": "Sé",
+  "localidade": "São Paulo", "uf": "SP", "numero": "100"
+}
+
+### Listar / buscar usuários (admin)
+GET {{baseUrl}}/usuarios
+Authorization: Bearer {{tokenAdmin}}
+
+###
+GET {{baseUrl}}/usuarios/buscar/maria
+Authorization: Bearer {{tokenAdmin}}
+
+### Promover usuário a ADMIN (somente admin pode alterar tipo_usuario)
+PATCH {{baseUrl}}/usuarios/2
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: {{json}}
+
+{ "tipo_usuario": "ADMIN" }
+
+### Itens de todos os pedidos
+GET {{baseUrl}}/itens-pedidos
+Authorization: Bearer {{tokenAdmin}}
+
+### Relatório de vendas (Vendas por Categoria + Faturamento Mensal) - gráficos
+GET {{baseUrl}}/relatorios/vendas?meses=12
+Authorization: Bearer {{tokenAdmin}}
+
+### Relatório de estoque
+GET {{baseUrl}}/relatorios/estoque
+Authorization: Bearer {{tokenAdmin}}
+
+### Cliente tentando acessar relatório (esperado 403)
+GET {{baseUrl}}/relatorios/vendas
+Authorization: Bearer {{tokenCliente}}
+
+### Excluir pedido cancelado (admin)
+DELETE {{baseUrl}}/pedidos/1
+Authorization: Bearer {{tokenAdmin}}
+
+### Excluir usuário
+DELETE {{baseUrl}}/usuarios/3
+Authorization: Bearer {{tokenAdmin}}

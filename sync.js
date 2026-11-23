@@ -1,4 +1,4 @@
-const { Obra , Material , Movimento , Funcionario } = require('./models/rel')
+const { Usuario, Categoria, Produto, Estoque, Pedido, ItemPedido, Entrega } = require('./models/rel')
 const conn = require('./db/conn')
 
 async function syncDatabase() {
